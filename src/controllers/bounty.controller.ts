@@ -85,6 +85,7 @@ async function listBounties(req: Request, res: Response): Promise<void> {
       maxReward: query.maxReward !== undefined ? Number(query.maxReward) : undefined,
       page: query.page !== undefined ? parseInt(query.page, 10) : 1,
       limit: query.limit !== undefined ? parseInt(query.limit, 10) : 20,
+      search: query.search !== undefined ? (query.search as string).trim() : undefined,
       sortBy: (query.sortBy as BountyFilters['sortBy']) ?? 'createdAt',
       sortOrder: (query.sortOrder as BountyFilters['sortOrder']) ?? 'desc',
     };
@@ -105,6 +106,13 @@ async function listBounties(req: Request, res: Response): Promise<void> {
       where.rewardAmount = {};
       if (filters.minReward !== undefined) where.rewardAmount.gte = filters.minReward;
       if (filters.maxReward !== undefined) where.rewardAmount.lte = filters.maxReward;
+    }
+
+    if (filters.search) {
+      where.OR = [
+        { title: { contains: filters.search, mode: 'insensitive' } },
+        { description: { contains: filters.search, mode: 'insensitive' } },
+      ];
     }
 
     // Build orderBy
