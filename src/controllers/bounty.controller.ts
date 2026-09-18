@@ -542,10 +542,90 @@ async function rejectBounty(req: Request, res: Response): Promise<void> {
   }
 }
 
+async function getBountyStats(_req: Request, res: Response): Promise<void> {
+  try {
+    const allStatuses = ['OPEN', 'CLAIMED', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CANCELLED', 'DISPUTED'];
+
+    // Group bounties by status
+    const statusGroups = await prisma.bounty.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    });
+
+    const bountiesByStatus: Record<string, number> = {};
+    for (const s of allStatuses) {
+      bountiesByStatus[s] = 0;
+    }
+    for (const group of statusGroups) {
+      bountiesByStatus[group.status] = group._count._all;
+    }
+
+    const totalBounties = Object.values(bountiesByStatus).reduce((a, b) => a + b, 0);
+
+    // Active bounties: OPEN, CLAIMED, SUBMITTED
+    const activeBounties = await prisma.bounty.findMany({
+      where: {
+        status: { in: ['OPEN', 'CLAIMED', 'SUBMITTED'] },
+      },
+      select: { rewardAmount: true },
+    });
+
+    let totalRewardLocked = 0;
+    for (const b of activeBounties) {
+      totalRewardLocked += Number(b.rewardAmount);
+    }
+
+    // Average time to completion for completed (APPROVED) bounties
+    const completedBounties = await prisma.bounty.findMany({
+      where: {
+        status: 'APPROVED',
+        approvedAt: { not: null },
+      },
+      select: {
+        createdAt: true,
+        approvedAt: true,
+      },
+    });
+
+    let totalDurationSeconds = 0;
+    for (const b of completedBounties) {
+      if (b.approvedAt) {
+        const diffMs = b.approvedAt.getTime() - b.createdAt.getTime();
+        totalDurationSeconds += Math.max(0, diffMs / 1000);
+      }
+    }
+
+    const averageCompletionTimeSeconds = completedBounties.length > 0
+      ? Math.round(totalDurationSeconds / completedBounties.length)
+      : null;
+
+    const averageCompletionTimeHours = averageCompletionTimeSeconds !== null
+      ? Number((averageCompletionTimeSeconds / 3600).toFixed(2))
+      : null;
+
+    res.status(200).json({
+      data: {
+        totalBounties,
+        bountiesByStatus,
+        activeBountiesCount: activeBounties.length,
+        totalRewardLocked: totalRewardLocked.toFixed(2),
+        totalRewardLockedAmount: totalRewardLocked,
+        completedBountiesCount: completedBounties.length,
+        averageCompletionTimeHours,
+        averageCompletionTimeSeconds,
+      },
+    });
+  } catch (error) {
+    console.error('getBountyStats error:', error);
+    res.status(500).json({ error: 'Failed to fetch bounty statistics' });
+  }
+}
+
 export const bountyController = {
   createBounty,
   listBounties,
   getBountyById,
+  getBountyStats,
   claimBounty,
   submitBounty,
   approveBounty,
