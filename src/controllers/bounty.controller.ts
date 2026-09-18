@@ -108,10 +108,23 @@ async function listBounties(req: Request, res: Response): Promise<void> {
     }
 
     // Build orderBy
-    const orderBy: Prisma.BountyOrderByWithRelationInput =
-      filters.sortBy === 'rewardAmount'
-        ? { rewardAmount: filters.sortOrder ?? 'desc' }
-        : { createdAt: filters.sortOrder ?? 'desc' };
+    const sortOrder = filters.sortOrder ?? 'desc';
+    let orderBy: Prisma.BountyOrderByWithRelationInput;
+    switch (filters.sortBy) {
+      case 'rewardAmount':
+        orderBy = { rewardAmount: sortOrder };
+        break;
+      case 'expiresAt':
+        orderBy = { expiresAt: sortOrder };
+        break;
+      case 'difficulty':
+        orderBy = { difficulty: sortOrder };
+        break;
+      case 'createdAt':
+      default:
+        orderBy = { createdAt: sortOrder };
+        break;
+    }
 
     const [bounties, total] = await Promise.all([
       prisma.bounty.findMany({
