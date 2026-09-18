@@ -42,19 +42,18 @@ async function markAsRead(req: AuthRequest, res: Response): Promise<void> {
 
     const notification = await prisma.notification.findUnique({ where: { id } });
 
-    if (!notification) {
+    // Return 404 if notification not found or belongs to another user to prevent enumeration
+    if (!notification || notification.recipientId !== req.contributor.id) {
       res.status(404).json({ error: 'Notification not found' });
-      return;
-    }
-
-    if (notification.recipientId !== req.contributor.id) {
-      res.status(403).json({ error: 'Access denied' });
       return;
     }
 
     const updated = await prisma.notification.update({
       where: { id },
-      data: { read: true },
+      data: {
+        read: true,
+        deliveredAt: new Date(),
+      },
     });
 
     res.status(200).json({ data: updated });
