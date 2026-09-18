@@ -177,7 +177,7 @@ function validateListBounties(req: Request, res: Response, next: NextFunction): 
   }
 
   // sortBy
-  const validSortBy = ['createdAt', 'rewardAmount'];
+  const validSortBy = ['createdAt', 'rewardAmount', 'expiresAt', 'difficulty'];
   if (query.sortBy !== undefined && !validSortBy.includes(query.sortBy as string)) {
     errors.push({
       field: 'sortBy',
