@@ -542,6 +542,55 @@ async function rejectBounty(req: Request, res: Response): Promise<void> {
   }
 }
 
+async function cancelBounty(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    // Placeholder creator/maintainer until JWT auth lands in step 15
+    const DEV_STELLAR = 'GDEV0000000000000000000000000000000000000000000000000000';
+    const creator = await prisma.contributor.upsert({
+      where: { stellarAddress: DEV_STELLAR },
+      update: {},
+      create: { stellarAddress: DEV_STELLAR, displayName: 'Dev Placeholder' },
+    });
+
+    const bounty = await prisma.bounty.findUnique({ where: { id } });
+
+    if (!bounty) {
+      res.status(404).json({ error: 'Bounty not found' });
+      return;
+    }
+
+    if (bounty.creatorId !== creator.id) {
+      res.status(403).json({ error: 'Only the bounty creator can cancel this bounty' });
+      return;
+    }
+
+    if (bounty.status !== 'OPEN') {
+      res.status(409).json({
+        error: 'Bounty cannot be cancelled',
+        detail: `Bounty is currently ${bounty.status}. Only OPEN bounties can be cancelled.`,
+      });
+      return;
+    }
+
+    const updatedBounty = await prisma.bounty.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+      include: {
+        creator: { select: creatorSelect },
+        claimant: { select: creatorSelect },
+        milestones: true,
+      },
+    });
+
+    res.status(200).json({ data: updatedBounty });
+  } catch (error) {
+    console.error('cancelBounty error:', error);
+    res.status(500).json({ error: 'Failed to cancel bounty' });
+  }
+}
+
 export const bountyController = {
   createBounty,
   listBounties,
@@ -550,4 +599,5 @@ export const bountyController = {
   submitBounty,
   approveBounty,
   rejectBounty,
+  cancelBounty,
 };
