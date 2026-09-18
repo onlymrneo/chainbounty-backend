@@ -45,4 +45,108 @@ describe('Platform Fee Calculations', () => {
       process.env.PLATFORM_FEE_PERCENTAGE = '2.5';
     });
   });
+
+  describe('treasuryController.getPlatformFeeSummary', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { treasuryController } = require('../src/controllers/treasury.controller');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { prisma } = require('../src/lib/prisma');
+
+    it('should return summary metrics with total collected, pending, bounty count and average fee', async () => {
+      jest.spyOn(prisma.platformFee, 'aggregate').mockImplementation(async (args: any) => {
+        if (args?.where?.collected === true) {
+          return { _sum: { amount: 150.0 }, _count: 3 };
+        }
+        return { _sum: { amount: 50.0 }, _count: 1 };
+      });
+
+      jest.spyOn(prisma.platformFee, 'groupBy').mockImplementation(async () => {
+        return [
+          { asset: 'XLM', collected: true, _sum: { amount: 150.0 }, _count: 3 },
+          { asset: 'XLM', collected: false, _sum: { amount: 50.0 }, _count: 1 },
+        ];
+      });
+
+      jest.spyOn(prisma.platformFee, 'findMany').mockImplementation(async () => {
+        return [
+          { bountyId: 'b1', amount: 50, asset: 'XLM', collected: true },
+          { bountyId: 'b2', amount: 50, asset: 'XLM', collected: true },
+          { bountyId: 'b3', amount: 50, asset: 'XLM', collected: true },
+          { bountyId: 'b4', amount: 50, asset: 'XLM', collected: false },
+        ];
+      });
+
+      const req: any = { query: { asset: 'XLM' } };
+      let statusCode = 0;
+      let jsonResponse: any = null;
+      const res: any = {
+        status: (code: number) => {
+          statusCode = code;
+          return res;
+        },
+        json: (data: any) => {
+          jsonResponse = data;
+          return res;
+        },
+      };
+
+      await treasuryController.getPlatformFeeSummary(req, res);
+
+      expect(statusCode).toBe(200);
+      expect(jsonResponse).toBeDefined();
+      expect(jsonResponse.data.totalCollected).toBe('150');
+      expect(jsonResponse.data.totalPending).toBe('50');
+      expect(jsonResponse.data.totalAmount).toBe('200');
+      expect(jsonResponse.data.bountyCount).toBe(4);
+      expect(jsonResponse.data.averageFeePerBounty).toBe('50.0000000');
+      expect(jsonResponse.data.byAsset.XLM).toBeDefined();
+      expect(jsonResponse.data.byAsset.XLM.total).toBe('200');
+
+      jest.restoreAllMocks();
+    });
+
+    it('should reject invalid startDate with 400 Bad Request', async () => {
+      const req: any = { query: { startDate: 'invalid-date-string' } };
+      let statusCode = 0;
+      let jsonResponse: any = null;
+      const res: any = {
+        status: (code: number) => {
+          statusCode = code;
+          return res;
+        },
+        json: (data: any) => {
+          jsonResponse = data;
+          return res;
+        },
+      };
+
+      await treasuryController.getPlatformFeeSummary(req, res);
+
+      expect(statusCode).toBe(400);
+      expect(jsonResponse.error).toBe('Validation failed');
+      expect(jsonResponse.details[0].field).toBe('startDate');
+    });
+
+    it('should reject invalid endDate with 400 Bad Request', async () => {
+      const req: any = { query: { endDate: 'invalid-date-string' } };
+      let statusCode = 0;
+      let jsonResponse: any = null;
+      const res: any = {
+        status: (code: number) => {
+          statusCode = code;
+          return res;
+        },
+        json: (data: any) => {
+          jsonResponse = data;
+          return res;
+        },
+      };
+
+      await treasuryController.getPlatformFeeSummary(req, res);
+
+      expect(statusCode).toBe(400);
+      expect(jsonResponse.error).toBe('Validation failed');
+      expect(jsonResponse.details[0].field).toBe('endDate');
+    });
+  });
 });
