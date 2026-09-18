@@ -90,6 +90,41 @@ router.post('/', bountyValidator.validateCreateBounty, bountyController.createBo
 
 /**
  * @openapi
+ * /api/v1/bounties/stats:
+ *   get:
+ *     tags: [Bounties]
+ *     summary: Get aggregate bounty statistics
+ *     description: Retrieve aggregate statistics including bounties by status, total locked rewards, and average completion time
+ *     responses:
+ *       200:
+ *         description: Aggregate bounty statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalBounties:
+ *                       type: integer
+ *                     bountiesByStatus:
+ *                       type: object
+ *                     activeBountiesCount:
+ *                       type: integer
+ *                     totalRewardLocked:
+ *                       type: string
+ *                     completedBountiesCount:
+ *                       type: integer
+ *                     averageCompletionTimeHours:
+ *                       type: number
+ *                     averageCompletionTimeSeconds:
+ *                       type: integer
+ */
+router.get('/stats', bountyController.getBountyStats);
+
+/**
+ * @openapi
  * /api/v1/bounties/{id}:
  *   get:
  *     tags: [Bounties]
