@@ -206,4 +206,54 @@ router.post('/:id/approve', bountyController.approveBounty);
  */
 router.post('/:id/reject', bountyController.rejectBounty);
 
+/**
+ * @openapi
+ * /api/v1/bounties/{id}:
+ *   delete:
+ *     tags: [Bounties]
+ *     summary: Cancel an open bounty
+ *     description: Cancel an open bounty. Only the bounty creator can cancel their bounty.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Bounty cancelled successfully
+ *       403:
+ *         description: Only the bounty creator can cancel this bounty
+ *       404:
+ *         description: Bounty not found
+ *       409:
+ *         description: Bounty cannot be cancelled (must be OPEN)
+ */
+router.delete('/:id', bountyController.cancelBounty);
+
+/**
+ * @openapi
+ * /api/v1/bounties/{id}/cancel:
+ *   post:
+ *     tags: [Bounties]
+ *     summary: Cancel an open bounty (action alias)
+ *     description: Cancel an open bounty. Only the bounty creator can cancel their bounty.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Bounty cancelled successfully
+ *       403:
+ *         description: Only the bounty creator can cancel this bounty
+ *       404:
+ *         description: Bounty not found
+ *       409:
+ *         description: Bounty cannot be cancelled (must be OPEN)
+ */
+router.post('/:id/cancel', bountyController.cancelBounty);
+
 export default router;
