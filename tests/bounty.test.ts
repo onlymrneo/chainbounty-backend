@@ -347,4 +347,114 @@ describe('Bounty CRUD Endpoints', () => {
         .expect(400);
     });
   });
+  describe('DELETE /api/v1/bounties/:id (Cancel Bounty)', () => {
+    it('should cancel an OPEN bounty created by creator', async () => {
+      const DEV_STELLAR = 'GDEV0000000000000000000000000000000000000000000000000000';
+      const devCreator = await prisma.contributor.upsert({
+        where: { stellarAddress: DEV_STELLAR },
+        update: {},
+        create: { stellarAddress: DEV_STELLAR, displayName: 'Dev Placeholder' },
+      });
+
+      const bounty = await prisma.bounty.create({
+        data: {
+          title: 'Test cancel open bounty',
+          description: 'This bounty will be cancelled',
+          rewardAmount: 50,
+          creatorId: devCreator.id,
+          status: 'OPEN',
+        },
+      });
+
+      const response = await request(app)
+        .delete(`/api/v1/bounties/${bounty.id}`)
+        .expect(200);
+
+      expect(response.body.data.status).toBe('CANCELLED');
+
+      const dbBounty = await prisma.bounty.findUnique({ where: { id: bounty.id } });
+      expect(dbBounty?.status).toBe('CANCELLED');
+    });
+
+    it('should cancel an OPEN bounty via POST /:id/cancel alias', async () => {
+      const DEV_STELLAR = 'GDEV0000000000000000000000000000000000000000000000000000';
+      const devCreator = await prisma.contributor.upsert({
+        where: { stellarAddress: DEV_STELLAR },
+        update: {},
+        create: { stellarAddress: DEV_STELLAR, displayName: 'Dev Placeholder' },
+      });
+
+      const bounty = await prisma.bounty.create({
+        data: {
+          title: 'Test cancel via POST',
+          description: 'This bounty will be cancelled via POST',
+          rewardAmount: 60,
+          creatorId: devCreator.id,
+          status: 'OPEN',
+        },
+      });
+
+      const response = await request(app)
+        .post(`/api/v1/bounties/${bounty.id}/cancel`)
+        .expect(200);
+
+      expect(response.body.data.status).toBe('CANCELLED');
+    });
+
+    it('should return 404 when cancelling nonexistent bounty', async () => {
+      await request(app)
+        .delete('/api/v1/bounties/nonexistent-id-12345')
+        .expect(404);
+    });
+
+    it('should return 409 when cancelling a non-OPEN bounty', async () => {
+      const DEV_STELLAR = 'GDEV0000000000000000000000000000000000000000000000000000';
+      const devCreator = await prisma.contributor.upsert({
+        where: { stellarAddress: DEV_STELLAR },
+        update: {},
+        create: { stellarAddress: DEV_STELLAR, displayName: 'Dev Placeholder' },
+      });
+
+      const bounty = await prisma.bounty.create({
+        data: {
+          title: 'Already claimed bounty',
+          description: 'Cannot cancel',
+          rewardAmount: 80,
+          creatorId: devCreator.id,
+          status: 'CLAIMED',
+        },
+      });
+
+      const res = await request(app)
+        .delete(`/api/v1/bounties/${bounty.id}`)
+        .expect(409);
+
+      expect(res.body.error).toBe('Bounty cannot be cancelled');
+    });
+
+    it('should return 403 when a non-creator attempts to cancel', async () => {
+      const otherUser = await prisma.contributor.create({
+        data: {
+          stellarAddress: 'GOTHER00000000000000000000000000000000000000000000000000',
+          displayName: 'Other User',
+        },
+      });
+
+      const bounty = await prisma.bounty.create({
+        data: {
+          title: 'Other user bounty',
+          description: 'Created by another contributor',
+          rewardAmount: 90,
+          creatorId: otherUser.id,
+          status: 'OPEN',
+        },
+      });
+
+      const res = await request(app)
+        .delete(`/api/v1/bounties/${bounty.id}`)
+        .expect(403);
+
+      expect(res.body.error).toBe('Only the bounty creator can cancel this bounty');
+    });
+  });
 });
