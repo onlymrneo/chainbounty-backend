@@ -149,6 +149,35 @@ describe('Bounty CRUD Endpoints', () => {
       expect(response.body.pagination).toHaveProperty('totalPages');
     });
 
+    it('should filter bounties by search query in title or description', async () => {
+      const response = await request(app)
+        .get('/api/v1/bounties')
+        .query({ search: 'login' })
+        .expect(200);
+
+      expect(response.body.data).toBeInstanceOf(Array);
+      response.body.data.forEach((bounty: { title: string; description: string }) => {
+        const matchesTitle = bounty.title.toLowerCase().includes('login');
+        const matchesDesc = bounty.description.toLowerCase().includes('login');
+        expect(matchesTitle || matchesDesc).toBe(true);
+      });
+    });
+
+    it('should reject search query exceeding maximum length', async () => {
+      const longSearch = 'a'.repeat(201);
+      const response = await request(app)
+        .get('/api/v1/bounties')
+        .query({ search: longSearch })
+        .expect(400);
+
+      expect(response.body.error).toBe('Validation failed');
+      expect(response.body.details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: 'search' }),
+        ]),
+      );
+    });
+
     it('should filter bounties by status', async () => {
       const response = await request(app)
         .get('/api/v1/bounties')
