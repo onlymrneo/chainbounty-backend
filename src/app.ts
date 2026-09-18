@@ -3,6 +3,8 @@ import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 import routes from './routes';
 import webhookRoutes from './routes/webhook.routes';
+import { prisma } from './lib/prisma';
+import { version } from '../package.json';
 import {
   generalLimiter,
   authLimiter,
@@ -46,11 +48,31 @@ app.use(validateRequestSize(1024 * 1024)); // 1MB max
 app.use(sanitizeInput);
 
 // Health endpoint (no rate limit)
-app.get('/health', (_req: Request, res: Response) => {
-  res.status(200).json({
-    status: 'ok',
+app.get('/health', async (_req: Request, res: Response) => {
+  let dbStatus = 'connected';
+  let dbError: string | undefined;
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch (err) {
+    dbStatus = 'error';
+    dbError = err instanceof Error ? err.message : 'Database ping failed';
+  }
+
+  const isHealthy = dbStatus === 'connected';
+  const statusCode = isHealthy ? 200 : 503;
+
+  res.status(statusCode).json({
+    status: isHealthy ? 'ok' : 'degraded',
+    version,
     service: 'chainbounty-backend',
     timestamp: new Date().toISOString(),
+    checks: {
+      database: {
+        status: dbStatus,
+        ...(dbError ? { error: dbError } : {}),
+      },
+    },
   });
 });
 
