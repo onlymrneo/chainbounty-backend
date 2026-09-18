@@ -347,4 +347,43 @@ describe('Bounty CRUD Endpoints', () => {
         .expect(400);
     });
   });
+
+  describe('GET /api/v1/bounties/stats', () => {
+    it('should return aggregate bounty statistics by status, locked rewards, and average completion time', async () => {
+      const response = await request(app).get('/api/v1/bounties/stats').expect(200);
+
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('totalBounties');
+      expect(response.body.data).toHaveProperty('bountiesByStatus');
+      expect(response.body.data.bountiesByStatus).toHaveProperty('OPEN');
+      expect(response.body.data.bountiesByStatus).toHaveProperty('CLAIMED');
+      expect(response.body.data.bountiesByStatus).toHaveProperty('APPROVED');
+      expect(response.body.data).toHaveProperty('totalRewardLocked');
+      expect(response.body.data).toHaveProperty('averageCompletionTimeHours');
+      expect(response.body.data).toHaveProperty('averageCompletionTimeSeconds');
+    });
+
+    it('should correctly calculate completion time when completed bounties exist', async () => {
+      const now = new Date();
+      const threeHoursAgo = new Date(now.getTime() - 3 * 3600 * 1000);
+
+      await prisma.bounty.create({
+        data: {
+          title: 'Completed stats test bounty',
+          description: 'Testing average completion time calculation',
+          rewardAmount: 150,
+          creatorId: testContributor.id,
+          status: 'APPROVED',
+          createdAt: threeHoursAgo,
+          approvedAt: now,
+        },
+      });
+
+      const response = await request(app).get('/api/v1/bounties/stats').expect(200);
+
+      expect(response.body.data.totalBounties).toBeGreaterThan(0);
+      expect(response.body.data.bountiesByStatus.APPROVED).toBeGreaterThan(0);
+      expect(response.body.data.averageCompletionTimeHours).toBeGreaterThan(0);
+    });
+  });
 });
