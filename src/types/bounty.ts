@@ -30,6 +30,7 @@ export interface BountyFilters {
   maxReward?: number;
   page?: number;
   limit?: number;
+  search?: string;
   sortBy?: 'createdAt' | 'rewardAmount' | 'reputationScore';
   sortOrder?: 'asc' | 'desc';
 }
