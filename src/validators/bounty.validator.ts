@@ -146,6 +146,15 @@ function validateListBounties(req: Request, res: Response, next: NextFunction): 
     });
   }
 
+  // search
+  if (query.search !== undefined) {
+    if (typeof query.search !== 'string') {
+      errors.push({ field: 'search', message: 'search must be a string' });
+    } else if (query.search.length > 200) {
+      errors.push({ field: 'search', message: 'search must be 200 characters or fewer' });
+    }
+  }
+
   // pagination
   if (query.page !== undefined) {
     const page = Number(query.page);
