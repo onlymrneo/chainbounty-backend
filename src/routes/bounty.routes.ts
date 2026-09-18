@@ -33,6 +33,20 @@ const router = Router();
  *           type: integer
  *           default: 20
  *           maximum: 100
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [createdAt, rewardAmount, expiresAt, difficulty]
+ *           default: createdAt
+ *         description: Field to sort bounties by
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Sort direction
  *     responses:
  *       200:
  *         description: List of bounties
