@@ -181,6 +181,64 @@ describe('Bounty CRUD Endpoints', () => {
         .query({ limit: 200 })
         .expect(400);
     });
+
+    it('should sort bounties by rewardAmount ascending and descending', async () => {
+      const ascRes = await request(app)
+        .get('/api/v1/bounties')
+        .query({ sortBy: 'rewardAmount', sortOrder: 'asc' })
+        .expect(200);
+
+      expect(ascRes.body.data).toBeInstanceOf(Array);
+      if (ascRes.body.data.length > 1) {
+        for (let i = 0; i < ascRes.body.data.length - 1; i++) {
+          const current = parseFloat(ascRes.body.data[i].rewardAmount);
+          const next = parseFloat(ascRes.body.data[i + 1].rewardAmount);
+          expect(current).toBeLessThanOrEqual(next);
+        }
+      }
+
+      const descRes = await request(app)
+        .get('/api/v1/bounties')
+        .query({ sortBy: 'rewardAmount', sortOrder: 'desc' })
+        .expect(200);
+
+      expect(descRes.body.data).toBeInstanceOf(Array);
+      if (descRes.body.data.length > 1) {
+        for (let i = 0; i < descRes.body.data.length - 1; i++) {
+          const current = parseFloat(descRes.body.data[i].rewardAmount);
+          const next = parseFloat(descRes.body.data[i + 1].rewardAmount);
+          expect(current).toBeGreaterThanOrEqual(next);
+        }
+      }
+    });
+
+    it('should sort bounties by expiresAt and difficulty', async () => {
+      const expiresRes = await request(app)
+        .get('/api/v1/bounties')
+        .query({ sortBy: 'expiresAt', sortOrder: 'asc' })
+        .expect(200);
+      expect(expiresRes.body.data).toBeInstanceOf(Array);
+
+      const diffRes = await request(app)
+        .get('/api/v1/bounties')
+        .query({ sortBy: 'difficulty', sortOrder: 'desc' })
+        .expect(200);
+      expect(diffRes.body.data).toBeInstanceOf(Array);
+    });
+
+    it('should reject invalid sortBy and sortOrder parameters', async () => {
+      const sortErr = await request(app)
+        .get('/api/v1/bounties')
+        .query({ sortBy: 'invalidField' })
+        .expect(400);
+      expect(sortErr.body.error).toBe('Validation failed');
+
+      const orderErr = await request(app)
+        .get('/api/v1/bounties')
+        .query({ sortOrder: 'invalidOrder' })
+        .expect(400);
+      expect(orderErr.body.error).toBe('Validation failed');
+    });
   });
 
   describe('GET /api/v1/bounties/:id', () => {
