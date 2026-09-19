@@ -1,7 +1,26 @@
 import type { Request, Response, NextFunction } from 'express';
 
 /**
- * Sanitizes user input by trimming whitespace and removing null bytes.
+ * Sanitizes an input string to remove null bytes, escape HTML to prevent XSS,
+ * and neutralize dangerous javascript: pseudo-protocols.
+ */
+export function sanitizeHtml(input: string): string {
+  if (!input) return '';
+
+  return input
+    .replace(/\0/g, '') // Remove null bytes
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Strip script tags
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '') // Strip iframes
+    .replace(/javascript:[^"'>\s]*/gi, '') // Strip javascript: URLs
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '') // Strip inline event handlers like onerror=...
+    .replace(/on\w+\s*=\s*[^"'>\s]+/gi, '')
+    .replace(/</g, '&lt;') // HTML escape brackets
+    .replace(/>/g, '&gt;')
+    .trim();
+}
+
+/**
+ * Sanitizes user input by trimming whitespace, stripping null bytes, and escaping HTML.
  */
 export function sanitizeInput(req: Request, _res: Response, next: NextFunction): void {
   if (req.body && typeof req.body === 'object') {
@@ -20,14 +39,13 @@ function sanitizeObject(obj: Record<string, unknown>): void {
   for (const key in obj) {
     const value = obj[key];
     if (typeof value === 'string') {
-      // Remove null bytes and trim
-      obj[key] = value.replace(/\0/g, '').trim();
+      obj[key] = sanitizeHtml(value);
     } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
       sanitizeObject(value as Record<string, unknown>);
     } else if (Array.isArray(value)) {
       value.forEach((item, index) => {
         if (typeof item === 'string') {
-          value[index] = item.replace(/\0/g, '').trim();
+          value[index] = sanitizeHtml(item);
         } else if (typeof item === 'object' && item !== null) {
           sanitizeObject(item as Record<string, unknown>);
         }
@@ -35,6 +53,7 @@ function sanitizeObject(obj: Record<string, unknown>): void {
     }
   }
 }
+
 
 /**
  * Validates Content-Type for POST/PUT/PATCH requests.
