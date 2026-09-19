@@ -1,13 +1,9 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { assertEnvOrExit } from './config/envValidator';
-
-// Validate required environment variables before initializing server
-assertEnvOrExit();
-
 import app from './app';
-import { startIndexer, stopIndexer } from './lib/horizonIndexer';
+import { startIndexer } from './lib/horizonIndexer';
+import { createShutdownHandler } from './lib/shutdown';
 
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 
@@ -19,15 +15,8 @@ const server = app.listen(PORT, () => {
   void startIndexer();
 });
 
-// Graceful shutdown
-const shutdown = (): void => {
-  console.info('Shutting down...');
-  stopIndexer();
-  server.close(() => {
-    console.info('HTTP server closed');
-    process.exit(0);
-  });
-};
+// Configure graceful shutdown handler
+const handleShutdown = createShutdownHandler({ server });
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', () => void handleShutdown('SIGTERM'));
+process.on('SIGINT', () => void handleShutdown('SIGINT'));
