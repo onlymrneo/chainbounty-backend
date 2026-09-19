@@ -1,6 +1,11 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import { enforceEnvValidation } from './config/envValidator';
+
+// Validate required environment variables before initializing services
+enforceEnvValidation();
+
 import app from './app';
 import { startIndexer, stopIndexer } from './lib/horizonIndexer';
 
