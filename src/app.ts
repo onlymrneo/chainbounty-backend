@@ -9,6 +9,7 @@ import {
   webhookLimiter,
   writeLimiter,
 } from './middleware/rateLimit.middleware';
+import { requestLogger } from './middleware/logging.middleware';
 import {
   sanitizeInput,
   validateContentType,
@@ -20,6 +21,9 @@ const app = express();
 
 // Security headers
 app.use(securityHeaders);
+
+// Structured JSON request logging
+app.use(requestLogger);
 
 // JSON + form parsing with size limits
 // Use verify callback to capture raw body for webhook signature verification
