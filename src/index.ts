@@ -1,6 +1,11 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import { assertEnvOrExit } from './config/envValidator';
+
+// Validate required environment variables before initializing server
+assertEnvOrExit();
+
 import app from './app';
 import { startIndexer, stopIndexer } from './lib/horizonIndexer';
 
