@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { AuthRequest } from '../types/auth';
 import { prisma } from '../lib/prisma';
 
 async function getContributorProfile(req: Request, res: Response): Promise<void> {
@@ -242,9 +243,144 @@ async function getLeaderboard(req: Request, res: Response): Promise<void> {
   }
 }
 
+async function updateContributorProfile(req: AuthRequest, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    // Validate authentication and ownership
+    if (!req.contributor || req.contributor.id !== id) {
+      res.status(403).json({ error: 'Forbidden: You can only update your own profile' });
+      return;
+    }
+
+    const body = req.body as Record<string, unknown>;
+
+    // Whitelist check: allow updating displayName, bio, and avatarUrl fields only
+    const allowedFields = ['displayName', 'bio', 'avatarUrl'];
+    const bodyKeys = Object.keys(body);
+
+    if (bodyKeys.length === 0) {
+      res.status(400).json({ error: 'At least one field (displayName, bio, avatarUrl) must be provided' });
+      return;
+    }
+
+    const disallowed = bodyKeys.filter((k) => !allowedFields.includes(k));
+    if (disallowed.length > 0) {
+      res.status(400).json({
+        error: 'Validation failed',
+        details: disallowed.map((f) => ({
+          field: f,
+          message: `Field '${f}' cannot be updated. Allowed fields are: ${allowedFields.join(', ')}`,
+        })),
+      });
+      return;
+    }
+
+    const validationErrors: Array<{ field: string; message: string }> = [];
+
+    // displayName validation
+    if (body.displayName !== undefined && body.displayName !== null) {
+      if (typeof body.displayName !== 'string') {
+        validationErrors.push({ field: 'displayName', message: 'displayName must be a string' });
+      } else if (body.displayName.trim().length > 100) {
+        validationErrors.push({
+          field: 'displayName',
+          message: 'displayName must not exceed 100 characters',
+        });
+      }
+    }
+
+    // bio validation
+    if (body.bio !== undefined && body.bio !== null) {
+      if (typeof body.bio !== 'string') {
+        validationErrors.push({ field: 'bio', message: 'bio must be a string' });
+      } else if (body.bio.trim().length > 500) {
+        validationErrors.push({ field: 'bio', message: 'bio must not exceed 500 characters' });
+      }
+    }
+
+    // avatarUrl validation
+    if (body.avatarUrl !== undefined && body.avatarUrl !== null) {
+      if (typeof body.avatarUrl !== 'string') {
+        validationErrors.push({ field: 'avatarUrl', message: 'avatarUrl must be a string' });
+      } else if (body.avatarUrl.trim() !== '') {
+        try {
+          const parsedUrl = new URL(body.avatarUrl);
+          if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+            validationErrors.push({
+              field: 'avatarUrl',
+              message: 'avatarUrl must use HTTP or HTTPS protocol',
+            });
+          }
+        } catch {
+          validationErrors.push({ field: 'avatarUrl', message: 'avatarUrl must be a valid URL' });
+        }
+      }
+    }
+
+    if (validationErrors.length > 0) {
+      res.status(400).json({ error: 'Validation failed', details: validationErrors });
+      return;
+    }
+
+    // Verify contributor exists
+    const existing = await prisma.contributor.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: 'Contributor not found' });
+      return;
+    }
+
+    // Build update payload
+    const dataToUpdate: {
+      displayName?: string | null;
+      bio?: string | null;
+      avatarUrl?: string | null;
+    } = {};
+
+    if (body.displayName !== undefined) {
+      dataToUpdate.displayName =
+        typeof body.displayName === 'string' ? body.displayName.trim() : null;
+    }
+    if (body.bio !== undefined) {
+      dataToUpdate.bio = typeof body.bio === 'string' ? body.bio.trim() : null;
+    }
+    if (body.avatarUrl !== undefined) {
+      dataToUpdate.avatarUrl =
+        typeof body.avatarUrl === 'string' ? body.avatarUrl.trim() : null;
+    }
+
+    const updated = await prisma.contributor.update({
+      where: { id },
+      data: dataToUpdate,
+      select: {
+        id: true,
+        stellarAddress: true,
+        githubUsername: true,
+        displayName: true,
+        avatarUrl: true,
+        bio: true,
+        reputationScore: true,
+        bountiesCompleted: true,
+        totalEarned: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.status(200).json({ data: updated });
+  } catch (error) {
+    console.error('updateContributorProfile error:', error);
+    res.status(500).json({ error: 'Failed to update contributor profile' });
+  }
+}
+
 export const contributorController = {
   getContributorProfile,
   getContributorByAddress,
   getContributorStats,
   getLeaderboard,
+  updateContributorProfile,
 };
