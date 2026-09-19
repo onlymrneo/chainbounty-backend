@@ -2,9 +2,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import app from './app';
-import { prisma } from './lib/prisma';
-import { startIndexer, stopIndexer } from './lib/horizonIndexer';
-import { setupGracefulShutdown } from './lib/gracefulShutdown';
+import { startIndexer } from './lib/horizonIndexer';
+import { createShutdownHandler } from './lib/shutdown';
 
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 
@@ -16,7 +15,8 @@ const server = app.listen(PORT, () => {
   void startIndexer();
 });
 
-// Setup graceful shutdown on SIGTERM and SIGINT
-setupGracefulShutdown(server, prisma, () => {
-  stopIndexer();
-});
+// Configure graceful shutdown handler
+const handleShutdown = createShutdownHandler({ server });
+
+process.on('SIGTERM', () => void handleShutdown('SIGTERM'));
+process.on('SIGINT', () => void handleShutdown('SIGINT'));
