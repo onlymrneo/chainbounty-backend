@@ -105,6 +105,128 @@ http://localhost:3000/api-docs
 - `GET /api/v1/treasury/stats` - Platform fee stats
 - `POST /webhooks/github` - GitHub webhook receiver
 
+
+
+## API Authentication Flow
+
+ChainBounty implements challenge-response authentication using Stellar ed25519 keypairs and JSON Web Tokens (JWT). Contributor accounts require no passwords; identity and permissions are cryptographically proved through keypair signature verification.
+
+### Challenge-Response Workflow
+
+```
+Client Application                                       ChainBounty Backend
+        |                                                         |
+        | 1. POST /api/v1/auth/challenge { stellarAddress }       |
+        |-------------------------------------------------------->|
+        |                                                         |
+        | 2. Returns unique 64-char hex nonce                     |
+        |<--------------------------------------------------------|
+        |                                                         |
+        | [Sign nonce with Stellar ed25519 Secret Key]            |
+        |                                                         |
+        | 3. POST /api/v1/auth/verify { stellarAddress, signature}|
+        |-------------------------------------------------------->|
+        |                                                         |
+        | 4. Validates ed25519 signature & returns JWT token      |
+        |<--------------------------------------------------------|
+        |                                                         |
+        | 5. Authenticated request with Bearer <JWT> header       |
+        |-------------------------------------------------------->|
+```
+
+### 1. Request an Authentication Challenge
+
+Submit your public Stellar address to receive a single-use cryptographic challenge nonce:
+
+**Request (curl):**
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/challenge \
+  -H "Content-Type: application/json" \
+  -d '{"stellarAddress": "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFTO272FYO7J4H2YIMTC5"}'
+```
+
+**Request (JavaScript / TypeScript):**
+```javascript
+const response = await fetch('http://localhost:3000/api/v1/auth/challenge', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    stellarAddress: 'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFTO272FYO7J4H2YIMTC5'
+  })
+});
+const { data } = await response.json();
+console.log('Received Nonce:', data.nonce);
+```
+
+**Expected Response (`200 OK`):**
+```json
+{
+  "data": {
+    "nonce": "9a1b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f708192a3b4c5d6e7f80",
+    "message": "Sign this message to authenticate: 9a1b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f708192a3b4c5d6e7f80"
+  }
+}
+```
+
+### 2. Sign Nonce & Verify Challenge
+
+Sign the challenge message using your Stellar secret key (`@stellar/stellar-sdk` Keypair) and submit the base64 signature:
+
+**Signing Nonce with Stellar SDK:**
+```typescript
+import { Keypair } from '@stellar/stellar-sdk';
+
+const keypair = Keypair.fromSecret('SCZANGBA5YHTNYVVV4C3U252E2B6P6IRKD4DHAISYCGWOBD6TXDYCH35');
+const messageBuffer = Buffer.from(nonce, 'utf-8');
+const signature = keypair.sign(messageBuffer).toString('base64');
+```
+
+**Verification Request (curl):**
+```bash
+curl -X POST http://localhost:3000/api/v1/auth/verify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "stellarAddress": "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFTO272FYO7J4H2YIMTC5",
+    "signature": "MEUCIQDxvB8Y1g4i9jZ...=="
+  }'
+```
+
+**Expected Response (`200 OK`):**
+```json
+{
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "contributor": {
+      "id": "cm1abcdef000001...",
+      "stellarAddress": "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFTO272FYO7J4H2YIMTC5",
+      "githubUsername": "stellar-builder",
+      "displayName": "Stellar Contributor",
+      "avatarUrl": "https://avatars.githubusercontent.com/u/123456"
+    }
+  }
+}
+```
+
+### 3. Authenticated Endpoints & Required Headers
+
+Protected API endpoints enforce JWT validation via the standard HTTP `Authorization` header:
+
+| Header | Format | Description |
+| :--- | :--- | :--- |
+| `Authorization` | `Bearer <JWT_TOKEN>` | Bearer token obtained from `/api/v1/auth/verify` |
+| `Content-Type` | `application/json` | Mandatory on all `POST`, `PUT`, and `PATCH` requests |
+
+**Example: Authenticated Bounty Work Submission:**
+```bash
+curl -X POST http://localhost:3000/api/v1/bounties/bounty_id_here/submit \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -d '{
+    "pullRequestUrl": "https://github.com/org/repo/pull/42",
+    "notes": "Completed implementation with 100% test coverage"
+  }'
+```
+
 ## Testing
 
 ### Run All Tests
